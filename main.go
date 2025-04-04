@@ -1,8 +1,8 @@
 ﻿package main
 
 import (
-	"fmt"
 	"log"
+	"net/http"
 	"os"
 
 	_ "github.com/joho/godotenv/autoload"
@@ -26,18 +26,10 @@ func main() {
 		appSecret,
 	}
 
-	institutions, err := ac.getInstitutions()
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
-	fmt.Printf("1%v\n", institutions)
+	http.HandleFunc("/", ac.indexHandler)
+	http.HandleFunc("/authCallback", ac.authCallbackHandler)
 
-	var paymentAuthReqs *PaymentAuthRequests
-	paymentAuthReqs, err = ac.getPaymentAuth()
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
-	fmt.Printf("2%v\n", paymentAuthReqs)
+	port := "8080"
+	log.Println("Server starting on port", port)
+	log.Fatal(http.ListenAndServe(":"+port, nil))
 }

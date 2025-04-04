@@ -1,24 +1,24 @@
 package main
 
 import (
-	"context"
 	"bytes"
-	"encoding/json"
 	"encoding/base64"
+	"encoding/json"
+	"fmt"
+	"html/template"
 	"io"
 	"net/http"
 	"time"
-	"errors"
 )
 
-type PaymentAuthRequests struct {
-	Meta PaymentAuthMeta `json:"meta"`
-	Data PaymentAuthData `json:"data"`
+type AccountAuthRequests struct {
+	Meta AccountAuthMeta `json:"meta"`
+	Data AccountAuthData `json:"data"`
 }
-type PaymentAuthMeta struct {
+type AccountAuthMeta struct {
 	TracingID string `json:"tracingId"`
 }
-type PaymentAuthData struct {
+type AccountAuthData struct {
 	ID                   string    `json:"id"`
 	UserUUID             string    `json:"userUuid"`
 	ApplicationUserID    string    `json:"applicationUserId"`
@@ -32,75 +32,110 @@ type PaymentAuthData struct {
 	QrCodeURL            string    `json:"qrCodeUrl"`
 }
 
-const exampleRequest = `
-{
-  "applicationUserId": "string",
-  "institutionId": "bpm-sandbox",
-  "callback": "https://display-parameters.com/",
-  "paymentRequest": {
-    "paymentIdempotencyId": "234g87t58tgeuo848wudjew489",
-    "payer": {
-      "name": "John Doe",
-      "accountIdentifications": [
-        {
-          "type": "IBAN",
-          "identification": "DE89370400440532013000"
-        }
-      ]
-    },
-    "amount": {
-      "amount": 1,
-      "currency": "EUR"
-    },
-    "reference": "Bill Payment",
-    "type": "DOMESTIC_PAYMENT",
-    "payee": {
-      "name": "Jane Doe",
-      "address": {
-        "country": "BE"
-      },
-      "accountIdentifications": [
-        {
-          "type": "IBAN",
-          "identification": "BE68539007547034"
-        }
-      ]
-    }
-  }
-}
+var indexTemplate = `
+<!DOCTYPE html>
+<html>
+<head>
+	<meta charset="UTF-8">
+	<title>Select Sandbox</title>
+</head>
+<body>
+	<h1>Select a Sandbox</h1>
+	<form method="POST" action="/">
+		<label for="institutionId">Choose a sandbox:</label>
+		<select name="institutionId" id="institutionId">
+			{{ range . }}
+				<option value="{{ .ID }}">{{ .Name }} ({{ .EnvironmentType }})</option>
+			{{ end }}
+		</select>
+		<br><br>
+		<input type="submit" value="Authenticate">
+	</form>
+</body>
+</html>
 `
 
-func (ac *ApiClient) getPaymentAuth() (*PaymentAuthRequests, error) {
-	req, err := http.NewRequest("POST", "https://api.yapily.com/payment-auth-requests", bytes.NewBufferString(exampleRequest))
-	if err != nil {
-		return nil, err
+func (ac *ApiClient) indexHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method == http.MethodGet {
+		institutions, err := ac.getInstitutions()
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
+		fmt.Printf("institutions: %v\n", institutions)
+		t := template.Must(template.New("index").Parse(indexTemplate))
+		err = t.Execute(w, institutions.Data)
+		if err != nil {
+			fmt.Println("Failed at executing form template" + err.Error())
+		}
+		return
+	} else if r.Method == http.MethodPost {
+		if err := r.ParseForm(); err != nil {
+			http.Error(w, "Error parsing form: "+err.Error(), http.StatusBadRequest)
+			return
+		}
+		institutionId := r.FormValue("institutionId")
+		authUrl, err := ac.createAuthRequest(institutionId)
+		if err != nil {
+			http.Error(w, "Failed to create auth request: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
+		http.Redirect(w, r, authUrl, http.StatusFound)
 	}
+}
+
+func (ac *ApiClient) authCallbackHandler(w http.ResponseWriter, r *http.Request) {
+	token := r.URL.Query().Get("token")
+	if token == "" {
+		token = "No token provided"
+	}
+	w.Write([]byte("Authentication successful. Token: " + token))
+}
+
+func (ac *ApiClient) createAuthRequest(institutionId string) (string, error) {
+	url := "https://api.yapily.com/account-auth-requests"
+
+	request := map[string]any{
+		"applicationUserId": "Authflow_test@liu.se",
+		"institutionId":     institutionId,
+		"callback":          "https://display-parameters.com/",
+	}
+	bodyBytes, err := json.Marshal(request)
+	if err != nil {
+		return "", err
+	}
+
+	req, err := http.NewRequest("POST", url, bytes.NewBuffer(bodyBytes))
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("Content-Type", "application/json;charset=UTF-8")
+	req.Header.Set("Accept", "application/json;charset=UTF-8")
+
 	var basicAuth string = base64.RawURLEncoding.EncodeToString([]byte(ac.appUuid + ":" + ac.appSecret))
 	req.Header.Set("Authorization", "Basic "+basicAuth)
-	req.Header.Set("Content-Type", "application/json;charset=UTF-8")
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	resp, err := http.DefaultClient.Do(req.WithContext(ctx))
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		return nil, err
+		return "", err
 	}
 	defer resp.Body.Close()
-	jsonBody, err := io.ReadAll(resp.Body)
+
+	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return nil, err
+		return "", err
 	}
 
-	if resp.StatusCode != 201 {
-		// errorResp := new(ErrorResp)
-		// err = json.Unmarshal(jsonBody, &errorResp)
-		return nil, errors.New(string(jsonBody))
+	if resp.StatusCode != http.StatusCreated {
+		errorResp := new(ErrorResp)
+		err = json.Unmarshal(respBody, &errorResp)
+		return "", errorResp
 	}
 
-	paymentAuthRequests := new(PaymentAuthRequests)
-	err = json.Unmarshal(jsonBody, &paymentAuthRequests)
-	if err != nil {
-		return nil, err
+	var authResp AccountAuthRequests
+	if err := json.Unmarshal(respBody, &authResp); err != nil {
+		return "", err
 	}
-	return paymentAuthRequests, nil
+
+	return authResp.Data.AuthorisationURL, nil
 }

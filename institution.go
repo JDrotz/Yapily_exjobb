@@ -10,8 +10,8 @@ import (
 )
 
 type Institutions struct {
-	Meta InstitutionsMeta          `json:"meta"`
-	Data []Institution `json:"data"`
+	Meta InstitutionsMeta `json:"meta"`
+	Data []Institution    `json:"data"`
 }
 type Pagination struct {
 	TotalCount int `json:"totalCount"`
