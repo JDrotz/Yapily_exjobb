@@ -85,11 +85,11 @@ func (ac *ApiClient) indexHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (ac *ApiClient) authCallbackHandler(w http.ResponseWriter, r *http.Request) {
-	token := r.URL.Query().Get("token")
-	if token == "" {
-		token = "No token provided"
+	consent := r.URL.Query().Get("consent")
+	if consent == "" {
+		consent = "No token provided"
 	}
-	w.Write([]byte("Authentication successful. Token: " + token))
+	w.Write([]byte("Authentication successful. Consent: " + consent))
 }
 
 func (ac *ApiClient) createAuthRequest(institutionId string) (string, error) {
