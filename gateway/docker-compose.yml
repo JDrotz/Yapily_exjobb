@@ -1,7 +1,7 @@
 services:
   api-gateway:
     build:
-      context: .
+      context: api_gateway/
       dockerfile: Dockerfile.gateway
     ports:
       - "8080:8080"
@@ -10,7 +10,7 @@ services:
 
   backend-service:
     build:
-      context: .
+      context: test_backend/
       dockerfile: Dockerfile.backend
     ports:
       - "8081:8081"
