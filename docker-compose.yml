@@ -1,0 +1,24 @@
+services:
+  api-gateway:
+    build:
+      context: api_gateway/
+      dockerfile: Dockerfile.gateway
+    ports:
+      - "8080:8080"
+    networks:
+      - backend
+
+  backend-service:
+    build:
+      context: test_backend/
+      dockerfile: Dockerfile.backend
+    ports:
+      - "8081:8081"
+    networks:
+      - backend
+    volumes:
+      - ./test_backend/.env:/.env
+
+networks:
+  backend:
+    driver: bridge
