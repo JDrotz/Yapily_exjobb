@@ -19,6 +19,15 @@ services:
     volumes:
       - ./test_backend/.env:/.env
 
+  ping-service:
+    build:
+      context: ping_service/
+      dockerfile: Dockerfile.backend
+    ports:
+      - "8082:8082"
+    networks:
+      - backend
+
 networks:
   backend:
     driver: bridge

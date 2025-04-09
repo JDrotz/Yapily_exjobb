@@ -23,7 +23,7 @@ func getLimiter(clientIP string) *rate.Limiter {
 
 	limiter, exists := clientLimits[clientIP]
 	if !exists {
-		limiter = rate.NewLimiter(rate.Every(time.Second*1), 2)
+		limiter = rate.NewLimiter(rate.Every(time.Second*10), 5)
 		clientLimits[clientIP] = limiter
 	}
 	return limiter
@@ -50,15 +50,21 @@ var authTemplate = `
 // TODO: add which endpoints the token is authorized for
 var authorizedTokens map[string]bool = map[string]bool{}
 
+var endpoint = map[string]string{
+	"/":                "http://backend-service:8081",
+	"/authCallback":    "http://backend-service:8081",
+	"/getAuthRequests": "http://ping-service:8082",
+}
+
 func main() {
 	// Define the backend service URL
-	backendURL, err := url.Parse("http://backend-service:8081")
-	if err != nil {
-		panic(err)
-	}
+	/*	backendURL, err := url.Parse("http://backend-service:8081")
+		if err != nil {
+			panic(err)
+		}
 
-	backendRedirect := httputil.NewSingleHostReverseProxy(backendURL)
-	// Request handler for the API Gateway
+		backendRedirect := httputil.NewSingleHostReverseProxy(backendURL)
+	*/ // Request handler for the API Gateway
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		clientIP, _, _ := net.SplitHostPort(r.RemoteAddr)
 		log.Printf("Request from %s: %s", clientIP, r.URL.Path)
@@ -72,22 +78,10 @@ func main() {
 		}
 		log.Printf("limiter allowed for %s: %v", clientIP, allowed)
 
-		if r.URL.Path == "/" {
-			proxyAuthCookie, err := r.Cookie("ProxyAuth")
-			if err != nil {
-				http.Error(w, "no such cookie ProxyAuth: "+err.Error(), http.StatusInternalServerError)
-				return
-			}
-			_, ok := authorizedTokens[proxyAuthCookie.Value]
-			if ok {
-				backendRedirect.ServeHTTP(w, r)
-			} else {
-				http.Error(w, "bad token", http.StatusBadRequest)
-			}
-		} else if r.URL.Path == "/auth" {
+		if r.URL.Path == "/auth" {
 			if r.Method == "GET" {
 				t := template.Must(template.New("auth").Parse(authTemplate))
-				err = t.Execute(w, nil)
+				err := t.Execute(w, nil)
 				if err != nil {
 					log.Println("Failee at executing form template" + err.Error())
 				}
@@ -103,8 +97,29 @@ func main() {
 				}
 			}
 		} else {
-			log.Printf("Invalid request from %s: %s", clientIP, r.URL.Path)
-			http.Error(w, "Invalid request", http.StatusBadRequest)
+			proxyAuthCookie, err := r.Cookie("ProxyAuth")
+			if err != nil {
+				http.Error(w, "no such cookie ProxyAuth: "+err.Error(), http.StatusInternalServerError)
+				return
+			}
+			_, ok := authorizedTokens[proxyAuthCookie.Value]
+			if ok {
+				if serviceURL, found := endpoint[r.URL.Path]; found {
+					backendURL, err := url.Parse(serviceURL)
+					if err != nil {
+						panic(err)
+					}
+					backendRedirect := httputil.NewSingleHostReverseProxy(backendURL)
+
+					backendRedirect.ServeHTTP(w, r)
+				} else {
+					http.Error(w, "invalid redirect", http.StatusUnauthorized)
+					log.Println("invalid redirect path: " + r.URL.Path)
+				}
+
+			} else {
+				http.Error(w, "bad token", http.StatusBadRequest)
+			}
 		}
 	})
 
