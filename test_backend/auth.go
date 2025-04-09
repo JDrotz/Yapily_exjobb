@@ -111,6 +111,12 @@ func (ac *ApiClient) createAuthRequest(institutionId string) (string, error) {
 	}
 	req.Header.Set("Content-Type", "application/json;charset=UTF-8")
 	req.Header.Set("Accept", "application/json;charset=UTF-8")
+	if institutionId == "deutschebank-sandbox" {
+		fmt.Println("SET")
+		req.Header.Set("psu-id", "6154033403")
+	} else {
+		fmt.Println(institutionId)
+	}
 
 	var basicAuth string = base64.RawURLEncoding.EncodeToString([]byte(ac.appUuid + ":" + ac.appSecret))
 	req.Header.Set("Authorization", "Basic "+basicAuth)
