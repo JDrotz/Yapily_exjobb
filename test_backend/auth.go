@@ -89,7 +89,9 @@ func (ac *ApiClient) authCallbackHandler(w http.ResponseWriter, r *http.Request)
 	if consent == "" {
 		consent = "No token provided"
 	}
-	w.Write([]byte("Authentication successful. Consent: " + consent))
+	bodyBytes, _ := io.ReadAll(r.Body)
+
+	w.Write([]byte("Authentication successful. Consent: " + consent + string(bodyBytes)))
 }
 
 func (ac *ApiClient) createAuthRequest(institutionId string) (string, error) {
@@ -98,7 +100,7 @@ func (ac *ApiClient) createAuthRequest(institutionId string) (string, error) {
 	request := map[string]any{
 		"applicationUserId": "Authflow_test@liu.se",
 		"institutionId":     institutionId,
-		"callback":          "https://display-parameters.com/",
+		"redirect":          "http://213.112.1.196:8080/authCallback",
 	}
 	bodyBytes, err := json.Marshal(request)
 	if err != nil {
