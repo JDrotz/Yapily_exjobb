@@ -53,12 +53,13 @@ var authorizedTokens map[string][]string = map[string][]string{}
 
 // NOTE: /auth is reserved
 var endpoints = map[string]string{
-	"/yapilyAuth":   "http://backend-service:8081/yapilyAuth",
-	"/authCallback": "http://backend-service:8081/authCallback",
-	"/ping":         "http://ping-service:8082/ping",
+	"/yapilyAuth":   "http://backend-service:8081/",
+	"/authCallback": "http://backend-service:8081/",
+	"/ping":         "http://ping-service:8082/",
 }
 
 const ADMIN_PASS = "1234"
+const USER_PASS = "2345"
 
 func main() {
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
@@ -98,6 +99,14 @@ func main() {
 					w.Header().Set("Set-Cookie", "ProxyAuth="+token)
 					// Should have a ?redirect= param?
 					http.Redirect(w, r, "/", http.StatusFound)
+				} else if r.FormValue("token") == USER_PASS {
+					var token string = uuid.NewString()
+					// Simulate an administrator logging in
+					authorizedTokens[token] = []string{
+						"/ping",
+					}
+					w.Header().Set("Set-Cookie", "ProxyAuth="+token)
+					http.Redirect(w, r, "/", http.StatusFound)
 				} else {
 					http.Error(w, "invalid credentials", http.StatusBadRequest)
 				}
@@ -124,7 +133,7 @@ func main() {
 						panic(err)
 					}
 
-					fmt.Println(r.URL.Path)
+					fmt.Println(backendURL)
 					if slices.Contains(authorizedPayloads, r.URL.Path) {
 						backendRedirect := httputil.NewSingleHostReverseProxy(backendURL)
 						fmt.Println(backendURL)

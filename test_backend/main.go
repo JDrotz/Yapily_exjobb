@@ -26,7 +26,7 @@ func main() {
 		appSecret,
 	}
 
-	http.HandleFunc("/", ac.indexHandler)
+	http.HandleFunc("/yapilyAuth", ac.indexHandler)
 	http.HandleFunc("/authCallback", ac.authCallbackHandler)
 
 	port := "8081"

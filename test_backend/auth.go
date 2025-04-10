@@ -87,13 +87,9 @@ func (ac *ApiClient) indexHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (ac *ApiClient) authCallbackHandler(w http.ResponseWriter, r *http.Request) {
-	consent := r.URL.Query().Get("consent")
-	if consent == "" {
-		consent = "No token provided"
-	}
 	bodyBytes, _ := io.ReadAll(r.Body)
 
-	w.Write([]byte("Authentication successful. Consent: " + consent + string(bodyBytes)))
+	w.Write([]byte("Authentication status: " + r.URL.RawQuery + string(bodyBytes)))
 }
 
 func (ac *ApiClient) createAuthRequest(institutionId string) (string, error) {
