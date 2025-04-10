@@ -113,11 +113,24 @@ func main() {
 			}
 		} else if r.URL.Path == "/" {
 			w.Write([]byte("<h1>API Gateway</h1>"))
-			w.Write([]byte("<a href=/yapilyAuth>yapily auth</a>"))
+			w.Write([]byte("<a href=/auth>log in</a>"))
+			proxyAuthCookie, err := r.Cookie("ProxyAuth")
+			if err != nil {
+				return
+			}
+			authorizedPayloads, ok := authorizedTokens[proxyAuthCookie.Value]
+			if !ok {
+				return
+			}
 			w.Write([]byte("<br>"))
-			w.Write([]byte("<a href=/authCallback>callback</a>"))
-			w.Write([]byte("<br>"))
-			w.Write([]byte("<a href=/ping>ping</a>"))
+			for _, path := range authorizedPayloads {
+				w.Write([]byte("<a href="))
+				w.Write([]byte(path))
+				w.Write([]byte(">"))
+				w.Write([]byte(path))
+				w.Write([]byte("</a>"))
+				w.Write([]byte("<br>"))
+			}
 		} else {
 			proxyAuthCookie, err := r.Cookie("ProxyAuth")
 			if err != nil {
@@ -139,7 +152,7 @@ func main() {
 						fmt.Println(backendURL)
 						backendRedirect.ServeHTTP(w, r)
 					} else {
-						http.Error(w, "anauthorized payload", http.StatusUnauthorized)
+						http.Error(w, "unauthorized payload", http.StatusUnauthorized)
 					}
 
 				} else {
