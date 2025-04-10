@@ -41,7 +41,7 @@ var indexTemplate = `
 </head>
 <body>
 	<h1>Select a Sandbox</h1>
-	<form method="POST" action="/">
+	<form method="POST" action="/yapilyAuth">
 		<label for="institutionId">Choose a sandbox:</label>
 		<select name="institutionId" id="institutionId">
 			{{ range . }}
@@ -62,8 +62,10 @@ func (ac *ApiClient) indexHandler(w http.ResponseWriter, r *http.Request) {
 			fmt.Println(err)
 			return
 		}
-		fmt.Printf("institutions: %v\n", institutions)
-		t := template.Must(template.New("index").Parse(indexTemplate))
+		t, err := template.New("index").Parse(indexTemplate)
+		if err != nil {
+			panic(err)
+		}
 		err = t.Execute(w, institutions.Data)
 		if err != nil {
 			fmt.Println("Failed at executing form template" + err.Error())
