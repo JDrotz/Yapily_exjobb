@@ -50,7 +50,47 @@ var authTemplate = `
 </html>
 `
 
-var authorizedTokens map[string][]string = map[string][]string{}
+type TokenInfo struct {
+	IssuedAt     time.Time
+	AllowedPaths []string
+}
+
+var authorizedTokens = make(map[string]TokenInfo)
+
+func addToken(token string, allowedPaths []string) {
+	mu.Lock()
+	defer mu.Unlock()
+	authorizedTokens[token] = TokenInfo{
+		IssuedAt:     time.Now(),
+		AllowedPaths: allowedPaths,
+	}
+}
+
+func removeToken(token string) {
+	mu.Lock()
+	defer mu.Unlock()
+	delete(authorizedTokens, token)
+}
+
+func isTokenValid(token string) bool {
+	mu.Lock()
+	defer mu.Unlock()
+
+	//set experation time
+	var maxAge = time.Minute * 5
+
+	tokenInfo, exists := authorizedTokens[token]
+	if !exists {
+		return false
+	}
+
+	// Check token age
+	if time.Since(tokenInfo.IssuedAt) > maxAge {
+		return false
+	}
+
+	return true
+}
 
 // NOTE: /auth is reserved
 var endpoints = map[string]string{
@@ -97,17 +137,22 @@ func main() {
 				if r.FormValue("token") == ADMIN_PASS {
 					token = uuid.NewString()
 					// Simulate an administrator logging in
-					authorizedTokens[token] = []string{
+					addToken(token, []string{
 						"/yapilyAuth",
 						"/authCallback",
 						"/ping",
-					}
+					})
+					w.Header().Set("Set-Cookie", "ProxyAuth="+token)
+					// Should have a ?redirect= param?
+					http.Redirect(w, r, "/", http.StatusFound)
 				} else if r.FormValue("token") == USER_PASS {
-					token = uuid.NewString()
-					// Simulate a user logging in
-					authorizedTokens[token] = []string{
+					var token string = uuid.NewString()
+					// Simulate an user logging in
+					addToken(token, []string{
 						"/ping",
-					}
+					})
+					w.Header().Set("Set-Cookie", "ProxyAuth="+token)
+					http.Redirect(w, r, "/", http.StatusFound)
 				} else {
 					http.Error(w, "invalid credentials", http.StatusBadRequest)
 					return
@@ -131,7 +176,7 @@ func main() {
 				return
 			}
 			w.Write([]byte("<br>"))
-			for _, path := range authorizedPayloads {
+			for _, path := range authorizedPayloads.AllowedPaths {
 				w.Write([]byte("<a href="))
 				w.Write([]byte(path))
 				w.Write([]byte(">"))
@@ -151,7 +196,7 @@ func main() {
 					return
 				}
 			}
-			authorizedPayloads, ok := authorizedTokens[proxyAuth]
+			ok := isTokenValid(proxyAuth)
 			if ok {
 				if serviceURL, found := endpoints[r.URL.Path]; found {
 					backendURL, err := url.Parse(serviceURL)
@@ -160,7 +205,7 @@ func main() {
 					}
 
 					fmt.Println(backendURL)
-					if slices.Contains(authorizedPayloads, r.URL.Path) {
+					if slices.Contains(authorizedTokens[proxyAuthCookie.Value].AllowedPaths, r.URL.Path) {
 						backendRedirect := httputil.NewSingleHostReverseProxy(backendURL)
 						fmt.Println(backendURL)
 						backendRedirect.ServeHTTP(w, r)
@@ -173,6 +218,7 @@ func main() {
 				}
 
 			} else {
+				removeToken(proxyAuthCookie.Value)
 				http.Error(w, "bad token", http.StatusBadRequest)
 			}
 		}
