@@ -9,6 +9,7 @@ import (
 	"net/http/httputil"
 	"net/url"
 	"slices"
+	"strings"
 	"sync"
 	"time"
 
@@ -78,37 +79,44 @@ func main() {
 		if r.URL.Path == "/auth" {
 			if r.Method == "GET" {
 				// User is requesting the auth page
-				t, err := template.New("auth").Parse(authTemplate)
-				if err != nil {
-					panic(err)
-				}
-				err = t.Execute(w, nil)
-				if err != nil {
-					log.Println("Failee at executing form template" + err.Error())
+				if strings.Split(r.UserAgent(), "/")[0] == "curl" {
+					http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+				} else {
+					t, err := template.New("auth").Parse(authTemplate)
+					if err != nil {
+						panic(err)
+					}
+					err = t.Execute(w, nil)
+					if err != nil {
+						log.Println("Failed at executing form template" + err.Error())
+					}
 				}
 			} else if r.Method == "POST" {
 				// User is trying to log in
+				var token string
 				if r.FormValue("token") == ADMIN_PASS {
-					var token string = uuid.NewString()
+					token = uuid.NewString()
 					// Simulate an administrator logging in
 					authorizedTokens[token] = []string{
 						"/yapilyAuth",
 						"/authCallback",
 						"/ping",
 					}
-					w.Header().Set("Set-Cookie", "ProxyAuth="+token)
-					// Should have a ?redirect= param?
-					http.Redirect(w, r, "/", http.StatusFound)
 				} else if r.FormValue("token") == USER_PASS {
-					var token string = uuid.NewString()
-					// Simulate an administrator logging in
+					token = uuid.NewString()
+					// Simulate a user logging in
 					authorizedTokens[token] = []string{
 						"/ping",
 					}
-					w.Header().Set("Set-Cookie", "ProxyAuth="+token)
-					http.Redirect(w, r, "/", http.StatusFound)
 				} else {
 					http.Error(w, "invalid credentials", http.StatusBadRequest)
+					return
+				}
+				if strings.Split(r.UserAgent(), "/")[0] == "curl" {
+					w.Write([]byte(token))
+				} else {
+					w.Header().Set("Set-Cookie", "ProxyAuth="+token)
+					http.Redirect(w, r, "/", http.StatusFound)
 				}
 			}
 		} else if r.URL.Path == "/" {
@@ -132,13 +140,18 @@ func main() {
 				w.Write([]byte("<br>"))
 			}
 		} else {
-			proxyAuthCookie, err := r.Cookie("ProxyAuth")
-			if err != nil {
-				// TODO: could redirect to /auth here
-				http.Error(w, "no such cookie ProxyAuth: "+err.Error(), http.StatusBadRequest)
-				return
+			var proxyAuth string
+			if strings.Split(r.UserAgent(), "/")[0] == "curl" {
+				proxyAuth = r.Header.Get("token")
+			} else {
+				proxyAuthCookie, err := r.Cookie("ProxyAuth")
+				proxyAuth = proxyAuthCookie.Value
+				if err != nil {
+					http.Error(w, "invalid auth: "+err.Error(), http.StatusBadRequest)
+					return
+				}
 			}
-			authorizedPayloads, ok := authorizedTokens[proxyAuthCookie.Value]
+			authorizedPayloads, ok := authorizedTokens[proxyAuth]
 			if ok {
 				if serviceURL, found := endpoints[r.URL.Path]; found {
 					backendURL, err := url.Parse(serviceURL)
