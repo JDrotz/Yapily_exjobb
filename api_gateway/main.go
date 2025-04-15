@@ -205,7 +205,7 @@ func main() {
 					}
 
 					fmt.Println(backendURL)
-					if slices.Contains(authorizedTokens[proxyAuthCookie.Value].AllowedPaths, r.URL.Path) {
+					if slices.Contains(authorizedTokens[proxyAuth].AllowedPaths, r.URL.Path) {
 						backendRedirect := httputil.NewSingleHostReverseProxy(backendURL)
 						fmt.Println(backendURL)
 						backendRedirect.ServeHTTP(w, r)
@@ -218,7 +218,7 @@ func main() {
 				}
 
 			} else {
-				removeToken(proxyAuthCookie.Value)
+				removeToken(proxyAuth)
 				http.Error(w, "bad token", http.StatusBadRequest)
 			}
 		}
