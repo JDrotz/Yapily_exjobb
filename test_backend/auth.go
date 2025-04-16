@@ -102,8 +102,8 @@ func (ac *ApiClient) authCallbackHandler(w http.ResponseWriter, r *http.Request)
 	if err != nil {
 		panic(err)
 	}
-	// req.Header.Set("Content-Type", "application/json;charset=UTF-8")
-	// req.Header.Set("Accept", "application/json;charset=UTF-8")
+	req.Header.Set("Content-Type", "application/json;charset=UTF-8")
+	req.Header.Set("Accept", "application/json;charset=UTF-8")
 	var basicAuth string = base64.RawURLEncoding.EncodeToString([]byte(ac.appUuid + ":" + ac.appSecret))
 	req.Header.Set("Authorization", "Basic "+basicAuth)
 
