@@ -87,7 +87,7 @@ func (ac *ApiClient) indexHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (ac *ApiClient) authCallbackHandler(w http.ResponseWriter, r *http.Request) {
-	url := "https://api.yapily.com/account-auth-requests"
+	url := "https://api.yapily.com/consent-auth-code"
 	request := map[string]any{
 		"authCode":  r.URL.Query().Get("code"),
 		"authState": r.URL.Query().Get("state"),
