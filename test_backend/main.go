@@ -28,6 +28,7 @@ func main() {
 
 	http.HandleFunc("/yapilyAuth", ac.indexHandler)
 	http.HandleFunc("/authCallback", ac.authCallbackHandler)
+	http.HandleFunc("/authCallback/", ac.authCallbackHandler)
 
 	port := "8081"
 	log.Println("Server starting on port", port)

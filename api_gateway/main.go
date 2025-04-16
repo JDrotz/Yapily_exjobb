@@ -198,14 +198,15 @@ func main() {
 			}
 			ok := isTokenValid(proxyAuth)
 			if ok {
-				if serviceURL, found := endpoints[r.URL.Path]; found {
+				var trimmedPath = strings.TrimRight(r.URL.Path, "/")
+				if serviceURL, found := endpoints[trimmedPath]; found {
 					backendURL, err := url.Parse(serviceURL)
 					if err != nil {
 						panic(err)
 					}
 
 					fmt.Println(backendURL)
-					if slices.Contains(authorizedTokens[proxyAuth].AllowedPaths, r.URL.Path) {
+					if slices.Contains(authorizedTokens[proxyAuth].AllowedPaths, trimmedPath) {
 						backendRedirect := httputil.NewSingleHostReverseProxy(backendURL)
 						fmt.Println(backendURL)
 						backendRedirect.ServeHTTP(w, r)
@@ -225,6 +226,6 @@ func main() {
 	})
 
 	// Start API Gateway server
-	log.Println("Starting API Gateway on :8080")
-	http.ListenAndServe(":8080", nil)
+	log.Println("Starting API Gateway on :8083")
+	http.ListenAndServe(":8083", nil)
 }

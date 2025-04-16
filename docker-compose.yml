@@ -4,7 +4,7 @@ services:
       context: api_gateway/
       dockerfile: Dockerfile.gateway
     ports:
-      - "8080:8080"
+      - "8083:8083"
     networks:
       - backend
 

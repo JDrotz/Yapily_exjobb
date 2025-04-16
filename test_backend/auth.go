@@ -87,9 +87,38 @@ func (ac *ApiClient) indexHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (ac *ApiClient) authCallbackHandler(w http.ResponseWriter, r *http.Request) {
-	bodyBytes, _ := io.ReadAll(r.Body)
+	url := "https://api.yapily.com/account-auth-requests"
+	request := map[string]any{
+		"authCode":  r.URL.Query().Get("code"),
+		"authState": r.URL.Query().Get("state"),
+	}
+	fmt.Println(r.URL.Query().Get("code"))
+	fmt.Println(r.URL.Query().Get("state"))
+	bodyBytes, err := json.Marshal(request)
+	if err != nil {
+		panic(err)
+	}
+	req, err := http.NewRequest("POST", url, bytes.NewBuffer(bodyBytes))
+	if err != nil {
+		panic(err)
+	}
+	// req.Header.Set("Content-Type", "application/json;charset=UTF-8")
+	// req.Header.Set("Accept", "application/json;charset=UTF-8")
+	var basicAuth string = base64.RawURLEncoding.EncodeToString([]byte(ac.appUuid + ":" + ac.appSecret))
+	req.Header.Set("Authorization", "Basic "+basicAuth)
 
-	w.Write([]byte("Authentication status: " + r.URL.RawQuery + string(bodyBytes)))
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		panic(err)
+	}
+	defer resp.Body.Close()
+
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		panic(err)
+	}
+
+	w.Write([]byte("Authentication status: " + string(respBody)))
 }
 
 func (ac *ApiClient) createAuthRequest(institutionId string) (string, error) {
@@ -98,7 +127,7 @@ func (ac *ApiClient) createAuthRequest(institutionId string) (string, error) {
 	request := map[string]any{
 		"applicationUserId": "Authflow_test@liu.se",
 		"institutionId":     institutionId,
-		"redirect":          "http://213.112.1.196:8080/authCallback",
+		"redirect":          "https://gateway.hoppenr.xyz/authCallback/",
 	}
 	bodyBytes, err := json.Marshal(request)
 	if err != nil {
