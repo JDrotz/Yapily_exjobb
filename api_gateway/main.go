@@ -135,14 +135,23 @@ func main() {
 				if strings.Split(r.UserAgent(), "/")[0] == "curl" {
 					w.Write([]byte(tokenString))
 				} else {
-					w.Header().Set("Set-Cookie", "ProxyAuth="+tokenString)
+					cookie := &http.Cookie{
+						Name:     "__Host-ProxyAuth",
+						Value:    tokenString,
+						Path:     "/",
+						HttpOnly: true,
+						Secure:   true,
+						SameSite: http.SameSiteStrictMode,
+						Expires:  time.Now().Add(15 * time.Minute),
+					}
+					http.SetCookie(w, cookie)
 					http.Redirect(w, r, "/", http.StatusFound)
 				}
 			}
 		} else if r.URL.Path == "/" {
 			w.Write([]byte("<h1>API Gateway</h1>"))
 			w.Write([]byte("<a href=/auth>log in</a>"))
-			proxyAuthCookie, err := r.Cookie("ProxyAuth")
+			proxyAuthCookie, err := r.Cookie("__Host-ProxyAuth")
 			if err != nil {
 				return
 			}
@@ -181,7 +190,7 @@ func main() {
 				}
 				allowedPaths = claims.AllowedPaths
 			} else {
-				proxyAuthCookie, err := r.Cookie("ProxyAuth")
+				proxyAuthCookie, err := r.Cookie("__Host-ProxyAuth")
 				if err != nil || proxyAuthCookie.Value == "" {
 					http.Error(w, "no token", http.StatusUnauthorized)
 					return
