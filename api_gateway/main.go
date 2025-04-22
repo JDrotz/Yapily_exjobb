@@ -141,7 +141,7 @@ func main() {
 						Path:     "/",
 						HttpOnly: true,
 						Secure:   true,
-						SameSite: http.SameSiteStrictMode,
+						SameSite: http.SameSiteLaxMode,
 						Expires:  time.Now().Add(15 * time.Minute),
 					}
 					http.SetCookie(w, cookie)
