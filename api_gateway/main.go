@@ -46,7 +46,6 @@ func main() {
 	key, jwtKeySet := os.LookupEnv("JWT_KEY")
 	jwtKey := []byte(key)
 	if !jwtKeySet {
-		log.Println(jwtKey)
 		log.Fatal("JWT_KEY must be set in the environment")
 	}
 
@@ -69,8 +68,12 @@ func main() {
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("GET /{$}", RootHandler(jwtKey))
+	mux.HandleFunc("/{$}", DenyMethod([]string{http.MethodGet}))
+
 	mux.HandleFunc("GET /auth", AuthPageHandler(authTemplate))
 	mux.HandleFunc("POST /auth", AuthSubmitHandler(jwtKey))
+	mux.HandleFunc("/auth", DenyMethod([]string{http.MethodGet, http.MethodPost}))
+
 	mux.HandleFunc("/", ProxyHandler(jwtKey))
 
 	http.ListenAndServe(":8083", mux)

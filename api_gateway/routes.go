@@ -12,6 +12,14 @@ import (
 	"time"
 )
 
+// Helper function to disallow all unhandled methods for a path
+func DenyMethod(allowedMethods []string) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Allow", strings.Join(allowedMethods, ","))
+		http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
+	}
+}
+
 // GET "/"
 func RootHandler(jwtKey []byte) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -41,7 +49,7 @@ func AuthPageHandler(authTemplate string) http.HandlerFunc {
 		// TODO: Use Content-Type and Accept instead
 		UA := strings.Split(r.UserAgent(), "/")[0]
 		if UA == "curl" {
-			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			w.Write([]byte("usage: curl -X POST -F token=<token> /auth"))
 		} else {
 			t, err := template.New("auth").Parse(authTemplate)
 			if err != nil {
