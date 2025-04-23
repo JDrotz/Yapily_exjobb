@@ -4,25 +4,7 @@ import (
 	"log"
 	"net/http"
 	"os"
-
-	"github.com/golang-jwt/jwt/v5"
-	_ "github.com/joho/godotenv/autoload"
 )
-
-type Claims struct {
-	AllowedPaths []string
-	jwt.RegisteredClaims
-}
-
-// NOTE: /auth and / are reserved
-var endpoints = map[string]string{
-	"/yapilyAuth":   "http://backend-service:8081/",
-	"/authCallback": "http://backend-service:8081/",
-	"/ping":         "http://ping-service:8082/",
-}
-
-const ADMIN_PASS = "1234"
-const USER_PASS = "2345"
 
 func main() {
 	key, jwtKeySet := os.LookupEnv("JWT_KEY")

@@ -4,8 +4,6 @@ import (
 	"log"
 	"net/http"
 	"os"
-
-	_ "github.com/joho/godotenv/autoload"
 )
 
 type ApiClient struct {

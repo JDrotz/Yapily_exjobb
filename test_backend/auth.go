@@ -110,12 +110,18 @@ func (ac *ApiClient) indexHandler(w http.ResponseWriter, r *http.Request) {
 
 func (ac *ApiClient) authCallbackHandler(w http.ResponseWriter, r *http.Request) {
 	url := "https://api.yapily.com/consent-auth-code"
-	request := map[string]any{
-		"authCode":  r.URL.Query().Get("code"),
-		"authState": r.URL.Query().Get("state"),
+
+	authCode := r.URL.Query().Get("code")
+	authState := r.URL.Query().Get("state")
+	if authCode == "" || authState == "" {
+		log.Println("Request callback missing code or state")
+		http.Error(w, "Bad request", http.StatusBadRequest)
 	}
-	// log.Println(r.URL.Query().Get("code"))
-	// log.Println(r.URL.Query().Get("state"))
+
+	request := map[string]any{
+		"authCode":  authCode,
+		"authState": authState,
+	}
 	bodyBytes, err := json.Marshal(request)
 	if err != nil {
 		log.Println("Failed to marshal json: " + err.Error())

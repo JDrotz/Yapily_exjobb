@@ -7,6 +7,11 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 )
 
+type Claims struct {
+	AllowedPaths []string
+	jwt.RegisteredClaims
+}
+
 func ParseJWT(jwtKey []byte, authHeader string) (*Claims, error) {
 	claims := &Claims{}
 	token, err := jwt.ParseWithClaims(authHeader, claims, func(t *jwt.Token) (any, error) {

@@ -14,6 +14,27 @@ import (
 	"time"
 )
 
+type EndpointData struct {
+	url            string
+	allowedMethods []string
+}
+
+// NOTE: /auth and / are reserved
+var endpoints = map[string]EndpointData{
+	"/yapilyAuth": {
+		url:            "http://backend-service:8081/",
+		allowedMethods: []string{http.MethodGet},
+	},
+	"/authCallback": {
+		url:            "http://backend-service:8081/",
+		allowedMethods: []string{http.MethodGet},
+	},
+	"/ping": {
+		url:            "http://ping-service:8082/",
+		allowedMethods: []string{http.MethodGet},
+	},
+}
+
 // Helper function to disallow all unhandled methods for a path
 func DenyMethod(allowedMethods []string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -76,11 +97,15 @@ func AuthPageHandler(authTemplate string) http.HandlerFunc {
 			}
 		} else {
 			w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-			w.Write([]byte("usage: curl -d 'token=<token>' <HOST>/auth"))
+			w.Write([]byte("usage: curl -d 'token=<TOKEN>' <HOST>/auth"))
 			return
 		}
 	}
 }
+
+// Mock "API tokens"
+const ADMIN_PASS = "1234"
+const USER_PASS = "2345"
 
 // POST "/auth"
 func AuthSubmitHandler(jwtKey []byte) http.HandlerFunc {
@@ -181,8 +206,12 @@ func ProxyHandler(jwtKey []byte) http.HandlerFunc {
 		}
 
 		var trimmedPath = strings.TrimRight(r.URL.Path, "/")
-		if serviceURL, found := endpoints[trimmedPath]; found {
-			backendURL, err := url.Parse(serviceURL)
+		if endpoint, found := endpoints[trimmedPath]; found {
+			if !slices.Contains(endpoint.allowedMethods, r.Method) {
+				DenyMethod(endpoint.allowedMethods)(w, r)
+				return
+			}
+			backendURL, err := url.Parse(endpoint.url)
 			if err != nil {
 				log.Println("Failed at parsing serviceURL: " + err.Error())
 				http.Error(w, "Internal server error", http.StatusInternalServerError)
