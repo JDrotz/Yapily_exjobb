@@ -4,9 +4,9 @@ import (
 	"bytes"
 	"encoding/base64"
 	"encoding/json"
-	"fmt"
 	"html/template"
 	"io"
+	"log"
 	"net/http"
 	"time"
 )
@@ -55,31 +55,53 @@ var indexTemplate = `
 </html>
 `
 
+type ConsentAuthCode struct {
+	ID                string    `json:"id"`
+	UserUUID          string    `json:"userUuid"`
+	ApplicationUserID string    `json:"applicationUserId"`
+	InstitutionID     string    `json:"institutionId"`
+	Status            string    `json:"status"`
+	CreatedAt         time.Time `json:"createdAt"`
+	FeatureScope      []string  `json:"featureScope"`
+	ConsentToken      string    `json:"consentToken"`
+	State             string    `json:"state"`
+	AuthorizedAt      time.Time `json:"authorizedAt"`
+	LastConfirmedAt   time.Time `json:"lastConfirmedAt"`
+
+	TimeToExpire         *string `json:"timeToExpire,omitempty"`
+	InstitutionConsentID *string `json:"institutionConsentId,omitempty"`
+}
+
 func (ac *ApiClient) indexHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodGet {
 		institutions, err := ac.getInstitutions()
 		if err != nil {
-			fmt.Println(err)
+			log.Println("Error getting institutions" + err.Error())
+			http.Error(w, "Internal server error", http.StatusInternalServerError)
 			return
 		}
 		t, err := template.New("index").Parse(indexTemplate)
 		if err != nil {
-			panic(err)
+			log.Println("Error creating new form template" + err.Error())
+			http.Error(w, "Internal server error", http.StatusInternalServerError)
+			return
 		}
-		err = t.Execute(w, institutions.Data)
-		if err != nil {
-			fmt.Println("Failed at executing form template" + err.Error())
+		if err = t.Execute(w, institutions.Data); err != nil {
+			log.Println("Failed at executing form template" + err.Error())
+			http.Error(w, "Internal server error", http.StatusInternalServerError)
 		}
 		return
 	} else if r.Method == http.MethodPost {
 		if err := r.ParseForm(); err != nil {
-			http.Error(w, "Error parsing form: "+err.Error(), http.StatusBadRequest)
+			log.Println("Error parsing form: " + err.Error())
+			http.Error(w, "Bad request", http.StatusBadRequest)
 			return
 		}
 		institutionId := r.FormValue("institutionId")
 		authUrl, err := ac.createAuthRequest(institutionId)
 		if err != nil {
-			http.Error(w, "Failed to create auth request: "+err.Error(), http.StatusInternalServerError)
+			log.Println("Failed to create auth request: " + err.Error())
+			http.Error(w, "Internal server error", http.StatusInternalServerError)
 			return
 		}
 		http.Redirect(w, r, authUrl, http.StatusFound)
@@ -92,15 +114,19 @@ func (ac *ApiClient) authCallbackHandler(w http.ResponseWriter, r *http.Request)
 		"authCode":  r.URL.Query().Get("code"),
 		"authState": r.URL.Query().Get("state"),
 	}
-	fmt.Println(r.URL.Query().Get("code"))
-	fmt.Println(r.URL.Query().Get("state"))
+	// log.Println(r.URL.Query().Get("code"))
+	// log.Println(r.URL.Query().Get("state"))
 	bodyBytes, err := json.Marshal(request)
 	if err != nil {
-		panic(err)
+		log.Println("Failed to marshal json: " + err.Error())
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		return
 	}
 	req, err := http.NewRequest("POST", url, bytes.NewBuffer(bodyBytes))
 	if err != nil {
-		panic(err)
+		log.Println("Failed to create request: " + err.Error())
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		return
 	}
 	req.Header.Set("Content-Type", "application/json;charset=UTF-8")
 	req.Header.Set("Accept", "application/json;charset=UTF-8")
@@ -109,16 +135,29 @@ func (ac *ApiClient) authCallbackHandler(w http.ResponseWriter, r *http.Request)
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		panic(err)
+		log.Println("Failed to make request: " + err.Error())
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		return
 	}
 	defer resp.Body.Close()
 
 	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
-		panic(err)
+		log.Println("Failed to read request: " + err.Error())
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		return
 	}
 
-	w.Write([]byte("Authentication status: " + string(respBody)))
+	var consentAuth ConsentAuthCode
+	err = json.Unmarshal(respBody, &consentAuth)
+	if err != nil {
+		log.Println("Failed to unmarshal consentAuth: " + err.Error())
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.Write([]byte(consentAuth.ConsentToken))
 }
 
 func (ac *ApiClient) createAuthRequest(institutionId string) (string, error) {
@@ -141,10 +180,8 @@ func (ac *ApiClient) createAuthRequest(institutionId string) (string, error) {
 	req.Header.Set("Content-Type", "application/json;charset=UTF-8")
 	req.Header.Set("Accept", "application/json;charset=UTF-8")
 	if institutionId == "deutschebank-sandbox" {
-		fmt.Println("SET")
+		// Sandbox PSU-ID
 		req.Header.Set("psu-id", "6154033403")
-	} else {
-		fmt.Println(institutionId)
 	}
 
 	var basicAuth string = base64.RawURLEncoding.EncodeToString([]byte(ac.appUuid + ":" + ac.appSecret))

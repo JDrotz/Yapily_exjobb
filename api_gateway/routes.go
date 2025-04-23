@@ -31,18 +31,21 @@ func RootHandler(jwtKey []byte) http.HandlerFunc {
 		w.Write([]byte("<a href=/auth>log in</a>"))
 
 		proxyAuthCookie, err := r.Cookie("__Host-ProxyAuth")
-		if err != nil {
-			log.Println(err)
+		if err == http.ErrNoCookie {
+			log.Println("Proxy auth cookie not found: " + err.Error())
 			return
 		}
+
 		if err = CheckCookie(proxyAuthCookie); err != nil {
-			log.Println(err)
+			log.Println("Bad proxy auth cookie: " + err.Error())
+			http.Error(w, "Bad request", http.StatusBadRequest)
 			return
 		}
 
 		claims, err := ParseJWT(jwtKey, proxyAuthCookie.Value)
 		if err != nil {
-			http.NotFound(w, r)
+			log.Println("Error parsing JWT: " + err.Error())
+			http.Error(w, "Bad request", http.StatusBadRequest)
 			return
 		}
 		w.Write([]byte("<br>"))
@@ -59,17 +62,22 @@ func AuthPageHandler(authTemplate string) http.HandlerFunc {
 		if strings.Contains(accept, "text/html") {
 			tpl, err := template.New("auth").Parse(authTemplate)
 			if err != nil {
-				log.Fatalln("Failed at creating form template: " + err.Error())
+				log.Println("Failed at creating form template: " + err.Error())
+				http.Error(w, "Internal server error", http.StatusInternalServerError)
+				return
 			}
 
 			w.Header().Set("Content-Type", "text/html; charset=utf-8")
 			err = tpl.Execute(w, nil)
 			if err != nil {
-				log.Fatalln("Failed at executing form template: " + err.Error())
+				log.Println("Failed at executing form template: " + err.Error())
+				http.Error(w, "Internal server error", http.StatusInternalServerError)
+				return
 			}
 		} else {
 			w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 			w.Write([]byte("usage: curl -X POST -d 'token=<token>' /auth"))
+			return
 		}
 	}
 }
@@ -86,11 +94,14 @@ func AuthSubmitHandler(jwtKey []byte) http.HandlerFunc {
 		case USER_PASS:
 			jwtToken, err = GenerateJWT(jwtKey, []string{"/ping"})
 		default:
-			http.Error(w, "invalid credentials", http.StatusBadRequest)
+			log.Println("Invalid password: " + err.Error())
+			http.Error(w, "Unauthorized", http.StatusUnauthorized)
 			return
 		}
 		if err != nil {
-			log.Fatalln("Failed at generating JWT: " + err.Error())
+			log.Println("Failed at generating JWT: " + err.Error())
+			http.Error(w, "Internal server error", http.StatusInternalServerError)
+			return
 		}
 
 		accept := r.Header.Get("accept")
@@ -111,7 +122,9 @@ func AuthSubmitHandler(jwtKey []byte) http.HandlerFunc {
 			w.Header().Set("Content-Type", "application/json; charset=utf-8")
 			response := map[string]string{"token": jwtToken}
 			if err := json.NewEncoder(w).Encode(response); err != nil {
-				http.Error(w, "Failed to encode JSON response", http.StatusInternalServerError)
+				log.Println("Failed to encode JSON response")
+				http.Error(w, "Internal server error", http.StatusInternalServerError)
+				return
 			}
 		}
 	}
@@ -122,10 +135,13 @@ func ProxyHandler(jwtKey []byte) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		clientIP, _, err := net.SplitHostPort(r.RemoteAddr)
 		if err != nil {
-			http.Error(w, "Invalid request", http.StatusBadRequest)
+			log.Println("No host:port data in request: " + err.Error())
+			http.Error(w, "Bad request", http.StatusBadRequest)
+			return
 		}
 		limiter := getLimiter(clientIP)
 		if !limiter.Allow() {
+			log.Println("Rate limit exceeded: ")
 			http.Error(w, "Rate limit exceeded", http.StatusTooManyRequests)
 			return
 		}
@@ -135,18 +151,21 @@ func ProxyHandler(jwtKey []byte) http.HandlerFunc {
 		if strings.Contains(accept, "text/html") {
 			proxyAuthCookie, err := r.Cookie("__Host-ProxyAuth")
 			if err != nil {
-				http.NotFound(w, r)
+				log.Println("Proxy auth cookie not found: " + err.Error())
+				http.Error(w, "Bad request", http.StatusBadRequest)
 				return
 			}
 			if err = CheckCookie(proxyAuthCookie); err != nil {
-				http.NotFound(w, r)
+				log.Println("Bad proxy auth cookie: " + err.Error())
+				http.Error(w, "Bad request", http.StatusBadRequest)
 				return
 			}
 			jwtToken = proxyAuthCookie.Value
 		} else {
 			authHeader := r.Header.Get("Authorization")
 			if !strings.HasPrefix(authHeader, "Bearer ") {
-				http.NotFound(w, r)
+				log.Println("Bad bearer token: ")
+				http.Error(w, "Bad request", http.StatusBadRequest)
 				return
 			}
 			jwtToken = strings.TrimPrefix(authHeader, "Bearer ")
@@ -154,7 +173,8 @@ func ProxyHandler(jwtKey []byte) http.HandlerFunc {
 
 		claims, err := ParseJWT(jwtKey, jwtToken)
 		if err != nil {
-			http.NotFound(w, r)
+			log.Println("Error parsing JWT: " + err.Error())
+			http.Error(w, "Bad request", http.StatusBadRequest)
 			return
 		}
 
@@ -162,17 +182,21 @@ func ProxyHandler(jwtKey []byte) http.HandlerFunc {
 		if serviceURL, found := endpoints[trimmedPath]; found {
 			backendURL, err := url.Parse(serviceURL)
 			if err != nil {
-				log.Fatalln("Failed at parsing serviceURL: " + err.Error())
+				log.Println("Failed at parsing serviceURL: " + err.Error())
+				http.Error(w, "Internal server error", http.StatusInternalServerError)
+				return
 			}
 
 			if slices.Contains(claims.AllowedPaths, trimmedPath) {
 				backendRedirect := httputil.NewSingleHostReverseProxy(backendURL)
 				backendRedirect.ServeHTTP(w, r)
 			} else {
-				http.Error(w, "unauthorized payload", http.StatusUnauthorized)
+				http.NotFound(w, r)
+				return
 			}
 		} else {
-			http.Error(w, "invalid payload", http.StatusUnauthorized)
+			http.NotFound(w, r)
+			return
 		}
 	}
 }
