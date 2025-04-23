@@ -4,35 +4,17 @@ import (
 	"log"
 	"net/http"
 	"os"
-	"sync"
-	"time"
 
 	"github.com/golang-jwt/jwt/v5"
 	_ "github.com/joho/godotenv/autoload"
-	"golang.org/x/time/rate"
 )
-
-var mu sync.Mutex
-var clientLimits = make(map[string]*rate.Limiter)
-
-func getLimiter(clientIP string) *rate.Limiter {
-	mu.Lock()
-	defer mu.Unlock()
-
-	limiter, exists := clientLimits[clientIP]
-	if !exists {
-		limiter = rate.NewLimiter(rate.Every(time.Millisecond*500), 5)
-		clientLimits[clientIP] = limiter
-	}
-	return limiter
-}
 
 type Claims struct {
 	AllowedPaths []string
 	jwt.RegisteredClaims
 }
 
-// NOTE: /auth is reserved
+// NOTE: /auth and / are reserved
 var endpoints = map[string]string{
 	"/yapilyAuth":   "http://backend-service:8081/",
 	"/authCallback": "http://backend-service:8081/",

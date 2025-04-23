@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"html/template"
 	"log"
+	"net"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
@@ -23,16 +24,23 @@ func DenyMethod(allowedMethods []string) http.HandlerFunc {
 // GET "/"
 func RootHandler(jwtKey []byte) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte("<!DOCTYPE html>"))
 		w.Write([]byte("<h1>API Gateway</h1>"))
 		w.Write([]byte("<a href=/auth>log in</a>"))
 
 		proxyAuthCookie, err := r.Cookie("__Host-ProxyAuth")
 		if err != nil {
+			log.Println(err)
 			return
 		}
-		claims, err, status := ParseJWT(jwtKey, proxyAuthCookie.Value)
+		if err = CheckCookie(proxyAuthCookie); err != nil {
+			log.Println(err)
+			return
+		}
+
+		claims, err := ParseJWT(jwtKey, proxyAuthCookie.Value)
 		if err != nil {
-			http.Error(w, err.Error(), status)
+			http.NotFound(w, r)
 			return
 		}
 		w.Write([]byte("<br>"))
@@ -66,14 +74,14 @@ func AuthPageHandler(authTemplate string) http.HandlerFunc {
 // POST "/auth"
 func AuthSubmitHandler(jwtKey []byte) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		var tokenString string
+		var jwtToken string
 		var err error
 
 		switch r.FormValue("token") {
 		case ADMIN_PASS:
-			tokenString, err = GenerateJWT(jwtKey, []string{"/yapilyAuth", "/authCallback", "/ping"})
+			jwtToken, err = GenerateJWT(jwtKey, []string{"/yapilyAuth", "/authCallback", "/ping"})
 		case USER_PASS:
-			tokenString, err = GenerateJWT(jwtKey, []string{"/ping"})
+			jwtToken, err = GenerateJWT(jwtKey, []string{"/ping"})
 		default:
 			http.Error(w, "invalid credentials", http.StatusBadRequest)
 			return
@@ -84,12 +92,13 @@ func AuthSubmitHandler(jwtKey []byte) http.HandlerFunc {
 
 		UA := strings.Split(r.UserAgent(), "/")[0]
 		if UA == "curl" {
-			w.Write([]byte(tokenString))
+			w.Write([]byte(jwtToken))
 		} else {
 			cookie := &http.Cookie{
 				Name:     "__Host-ProxyAuth",
-				Value:    tokenString,
+				Value:    jwtToken,
 				Path:     "/",
+				MaxAge:   900,
 				HttpOnly: true,
 				Secure:   true,
 				SameSite: http.SameSiteLaxMode,
@@ -104,36 +113,39 @@ func AuthSubmitHandler(jwtKey []byte) http.HandlerFunc {
 // VERB anything not in ["/", "/auth"]
 func ProxyHandler(jwtKey []byte) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		var allowedPaths []string
-		if strings.Split(r.UserAgent(), "/")[0] == "curl" {
+		clientIP, _, _ := net.SplitHostPort(r.RemoteAddr)
+		limiter := getLimiter(clientIP)
+		if !limiter.Allow() {
+			http.Error(w, "Rate limit exceeded", http.StatusTooManyRequests)
+			return
+		}
+
+		var jwtToken string
+		UA := strings.Split(r.UserAgent(), "/")[0]
+		if UA == "curl" {
 			authHeader := r.Header.Get("Authorization")
-			if authHeader == "" {
-				http.Error(w, "no token", http.StatusUnauthorized)
+			if !strings.HasPrefix(authHeader, "Bearer ") {
+				http.NotFound(w, r)
 				return
 			}
-			if authHeader == "" || !strings.HasPrefix(authHeader, "Bearer ") {
-				http.Error(w, "Missing or invalid Authorization header", http.StatusUnauthorized)
-				return
-			}
-			tokenString := strings.TrimPrefix(authHeader, "Bearer ")
-			claims, err, status := ParseJWT(jwtKey, tokenString)
-			if err != nil {
-				http.Error(w, err.Error(), status)
-				return
-			}
-			allowedPaths = claims.AllowedPaths
+			jwtToken = strings.TrimPrefix(authHeader, "Bearer ")
 		} else {
 			proxyAuthCookie, err := r.Cookie("__Host-ProxyAuth")
-			if err != nil || proxyAuthCookie.Value == "" {
-				http.Error(w, "no token", http.StatusUnauthorized)
-				return
-			}
-			claims, err, status := ParseJWT(jwtKey, proxyAuthCookie.Value)
 			if err != nil {
-				http.Error(w, err.Error(), status)
+				http.NotFound(w, r)
 				return
 			}
-			allowedPaths = claims.AllowedPaths
+			if err = CheckCookie(proxyAuthCookie); err != nil {
+				http.NotFound(w, r)
+				return
+			}
+			jwtToken = proxyAuthCookie.Value
+		}
+
+		claims, err := ParseJWT(jwtKey, jwtToken)
+		if err != nil {
+			http.NotFound(w, r)
+			return
 		}
 
 		var trimmedPath = strings.TrimRight(r.URL.Path, "/")
@@ -143,7 +155,7 @@ func ProxyHandler(jwtKey []byte) http.HandlerFunc {
 				log.Fatalln("Failed at parsing serviceURL: " + err.Error())
 			}
 
-			if slices.Contains(allowedPaths, trimmedPath) {
+			if slices.Contains(claims.AllowedPaths, trimmedPath) {
 				backendRedirect := httputil.NewSingleHostReverseProxy(backendURL)
 				backendRedirect.ServeHTTP(w, r)
 			} else {

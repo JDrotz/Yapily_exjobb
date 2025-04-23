@@ -2,13 +2,12 @@ package main
 
 import (
 	"errors"
-	"net/http"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
 )
 
-func ParseJWT(jwtKey []byte, authHeader string) (*Claims, error, int) {
+func ParseJWT(jwtKey []byte, authHeader string) (*Claims, error) {
 	claims := &Claims{}
 	token, err := jwt.ParseWithClaims(authHeader, claims, func(t *jwt.Token) (any, error) {
 		if t.Method != jwt.SigningMethodHS256 {
@@ -17,9 +16,9 @@ func ParseJWT(jwtKey []byte, authHeader string) (*Claims, error, int) {
 		return jwtKey, nil
 	})
 	if err != nil || !token.Valid {
-		return nil, errors.New("Invalid token"), http.StatusUnauthorized
+		return nil, errors.New("Invalid token")
 	}
-	return token.Claims.(*Claims), nil, 0
+	return token.Claims.(*Claims), nil
 }
 
 func GenerateJWT(jwtKey []byte, allowedPaths []string) (string, error) {
