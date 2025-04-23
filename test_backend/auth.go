@@ -98,6 +98,11 @@ func (ac *ApiClient) indexHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		institutionId := r.FormValue("institutionId")
+		if institutionId == "" {
+			log.Println("Missing institutionId in request")
+			http.Error(w, "Bad request", http.StatusBadRequest)
+			return
+		}
 		authUrl, err := ac.createAuthRequest(institutionId)
 		if err != nil {
 			log.Println("Failed to create auth request: " + err.Error())
