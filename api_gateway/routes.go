@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"html/template"
 	"log"
@@ -24,6 +25,7 @@ func DenyMethod(allowedMethods []string) http.HandlerFunc {
 // GET "/"
 func RootHandler(jwtKey []byte) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		w.Write([]byte("<!DOCTYPE html>"))
 		w.Write([]byte("<h1>API Gateway</h1>"))
 		w.Write([]byte("<a href=/auth>log in</a>"))
@@ -53,20 +55,21 @@ func RootHandler(jwtKey []byte) http.HandlerFunc {
 // GET "/auth"
 func AuthPageHandler(authTemplate string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		// User is requesting the auth page
-		// TODO: Use Content-Type and Accept instead
-		UA := strings.Split(r.UserAgent(), "/")[0]
-		if UA == "curl" {
-			w.Write([]byte("usage: curl -X POST -F token=<token> /auth"))
-		} else {
-			t, err := template.New("auth").Parse(authTemplate)
+		accept := r.Header.Get("accept")
+		if strings.Contains(accept, "text/html") {
+			tpl, err := template.New("auth").Parse(authTemplate)
 			if err != nil {
 				log.Fatalln("Failed at creating form template: " + err.Error())
 			}
-			err = t.Execute(w, nil)
+
+			w.Header().Set("Content-Type", "text/html; charset=utf-8")
+			err = tpl.Execute(w, nil)
 			if err != nil {
 				log.Fatalln("Failed at executing form template: " + err.Error())
 			}
+		} else {
+			w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+			w.Write([]byte("usage: curl -X POST -d 'token=<token>' /auth"))
 		}
 	}
 }
@@ -90,10 +93,8 @@ func AuthSubmitHandler(jwtKey []byte) http.HandlerFunc {
 			log.Fatalln("Failed at generating JWT: " + err.Error())
 		}
 
-		UA := strings.Split(r.UserAgent(), "/")[0]
-		if UA == "curl" {
-			w.Write([]byte(jwtToken))
-		} else {
+		accept := r.Header.Get("accept")
+		if strings.Contains(accept, "text/html") {
 			cookie := &http.Cookie{
 				Name:     "__Host-ProxyAuth",
 				Value:    jwtToken,
@@ -106,6 +107,12 @@ func AuthSubmitHandler(jwtKey []byte) http.HandlerFunc {
 			}
 			http.SetCookie(w, cookie)
 			http.Redirect(w, r, "/", http.StatusFound)
+		} else {
+			w.Header().Set("Content-Type", "application/json; charset=utf-8")
+			response := map[string]string{"token": jwtToken}
+			if err := json.NewEncoder(w).Encode(response); err != nil {
+				http.Error(w, "Failed to encode JSON response", http.StatusInternalServerError)
+			}
 		}
 	}
 }
@@ -113,7 +120,10 @@ func AuthSubmitHandler(jwtKey []byte) http.HandlerFunc {
 // VERB anything not in ["/", "/auth"]
 func ProxyHandler(jwtKey []byte) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		clientIP, _, _ := net.SplitHostPort(r.RemoteAddr)
+		clientIP, _, err := net.SplitHostPort(r.RemoteAddr)
+		if err != nil {
+			http.Error(w, "Invalid request", http.StatusBadRequest)
+		}
 		limiter := getLimiter(clientIP)
 		if !limiter.Allow() {
 			http.Error(w, "Rate limit exceeded", http.StatusTooManyRequests)
@@ -121,15 +131,8 @@ func ProxyHandler(jwtKey []byte) http.HandlerFunc {
 		}
 
 		var jwtToken string
-		UA := strings.Split(r.UserAgent(), "/")[0]
-		if UA == "curl" {
-			authHeader := r.Header.Get("Authorization")
-			if !strings.HasPrefix(authHeader, "Bearer ") {
-				http.NotFound(w, r)
-				return
-			}
-			jwtToken = strings.TrimPrefix(authHeader, "Bearer ")
-		} else {
+		accept := r.Header.Get("accept")
+		if strings.Contains(accept, "text/html") {
 			proxyAuthCookie, err := r.Cookie("__Host-ProxyAuth")
 			if err != nil {
 				http.NotFound(w, r)
@@ -140,6 +143,13 @@ func ProxyHandler(jwtKey []byte) http.HandlerFunc {
 				return
 			}
 			jwtToken = proxyAuthCookie.Value
+		} else {
+			authHeader := r.Header.Get("Authorization")
+			if !strings.HasPrefix(authHeader, "Bearer ") {
+				http.NotFound(w, r)
+				return
+			}
+			jwtToken = strings.TrimPrefix(authHeader, "Bearer ")
 		}
 
 		claims, err := ParseJWT(jwtKey, jwtToken)
