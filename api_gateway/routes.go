@@ -94,7 +94,7 @@ func AuthSubmitHandler(jwtKey []byte) http.HandlerFunc {
 		case USER_PASS:
 			jwtToken, err = GenerateJWT(jwtKey, []string{"/ping"})
 		default:
-			log.Println("Invalid password: " + err.Error())
+			log.Println("Invalid password")
 			http.Error(w, "Unauthorized", http.StatusUnauthorized)
 			return
 		}
@@ -141,7 +141,7 @@ func ProxyHandler(jwtKey []byte) http.HandlerFunc {
 		}
 		limiter := getLimiter(clientIP)
 		if !limiter.Allow() {
-			log.Println("Rate limit exceeded: ")
+			log.Println("Rate limit exceeded")
 			http.Error(w, "Rate limit exceeded", http.StatusTooManyRequests)
 			return
 		}
@@ -164,7 +164,7 @@ func ProxyHandler(jwtKey []byte) http.HandlerFunc {
 		} else {
 			authHeader := r.Header.Get("Authorization")
 			if !strings.HasPrefix(authHeader, "Bearer ") {
-				log.Println("Bad bearer token: ")
+				log.Println("Bad bearer token")
 				http.Error(w, "Bad request", http.StatusBadRequest)
 				return
 			}
