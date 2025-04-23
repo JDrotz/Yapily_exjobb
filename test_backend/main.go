@@ -32,5 +32,8 @@ func main() {
 
 	port := "8081"
 	log.Println("Server starting on port", port)
-	log.Fatal(http.ListenAndServe(":"+port, nil))
+	err := http.ListenAndServe(":"+port, nil)
+	if err != nil {
+		log.Fatalln(err)
+	}
 }

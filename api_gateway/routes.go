@@ -76,7 +76,7 @@ func AuthPageHandler(authTemplate string) http.HandlerFunc {
 			}
 		} else {
 			w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-			w.Write([]byte("usage: curl -X POST -d 'token=<token>' /auth"))
+			w.Write([]byte("usage: curl -d 'token=<token>' <HOST>/auth"))
 			return
 		}
 	}
@@ -88,13 +88,14 @@ func AuthSubmitHandler(jwtKey []byte) http.HandlerFunc {
 		var jwtToken string
 		var err error
 
+		log.Println("AUDIT: Validation requested by: " + r.RemoteAddr)
 		switch r.FormValue("token") {
 		case ADMIN_PASS:
 			jwtToken, err = GenerateJWT(jwtKey, []string{"/yapilyAuth", "/authCallback", "/ping"})
 		case USER_PASS:
 			jwtToken, err = GenerateJWT(jwtKey, []string{"/ping"})
 		default:
-			log.Println("Invalid password")
+			log.Println("AUDIT: Validation error by: " + r.RemoteAddr)
 			http.Error(w, "Unauthorized", http.StatusUnauthorized)
 			return
 		}
@@ -127,6 +128,7 @@ func AuthSubmitHandler(jwtKey []byte) http.HandlerFunc {
 				return
 			}
 		}
+		log.Println("AUDIT: Validation granted to: " + r.RemoteAddr)
 	}
 }
 
@@ -135,7 +137,7 @@ func ProxyHandler(jwtKey []byte) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		clientIP, _, err := net.SplitHostPort(r.RemoteAddr)
 		if err != nil {
-			log.Println("No host:port data in request: " + err.Error())
+			log.Println("Bad host data in request: " + err.Error())
 			http.Error(w, "Bad request", http.StatusBadRequest)
 			return
 		}
