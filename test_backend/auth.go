@@ -111,10 +111,11 @@ func (ac *ApiClient) indexHandler(w http.ResponseWriter, r *http.Request) {
 func (ac *ApiClient) authCallbackHandler(w http.ResponseWriter, r *http.Request) {
 	url := "https://api.yapily.com/consent-auth-code"
 
-	authCode := r.URL.Query().Get("code")
 	authState := r.URL.Query().Get("state")
-	if authCode == "" || authState == "" {
-		log.Println("Request callback missing code or state")
+	authCode := r.URL.Query().Get("code")
+
+	if authState == "" {
+		log.Println("Request callback missing state")
 		http.Error(w, "Bad request", http.StatusBadRequest)
 	}
 
