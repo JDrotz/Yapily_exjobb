@@ -19,11 +19,23 @@ type EndpointData struct {
 	allowedMethods []string
 }
 
+// var allMethods = []string{
+// 	http.MethodGet,
+// 	http.MethodHead,
+// 	http.MethodPost,
+// 	http.MethodPut,
+// 	http.MethodPatch,
+// 	http.MethodDelete,
+// 	http.MethodConnect,
+// 	http.MethodOptions,
+// 	http.MethodTrace,
+// }
+
 // NOTE: /auth and / are reserved
 var endpoints = map[string]EndpointData{
 	"/yapilyAuth": {
 		url:            "http://backend-service:8081/",
-		allowedMethods: []string{http.MethodGet},
+		allowedMethods: []string{http.MethodGet, http.MethodPost},
 	},
 	"/authCallback": {
 		url:            "http://backend-service:8081/",
