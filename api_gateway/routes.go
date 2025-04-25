@@ -35,15 +35,15 @@ type EndpointData struct {
 var endpoints = map[string]EndpointData{
 	"/yapilyAuth": {
 		url:            "http://backend-service:8081/",
-		allowedMethods: []string{http.MethodGet, http.MethodPost},
+		allowedMethods: []string{http.MethodGet, http.MethodPost, http.MethodOptions},
 	},
 	"/authCallback": {
 		url:            "http://backend-service:8081/",
-		allowedMethods: []string{http.MethodGet},
+		allowedMethods: []string{http.MethodGet, http.MethodOptions},
 	},
 	"/ping": {
 		url:            "http://ping-service:8082/",
-		allowedMethods: []string{http.MethodGet},
+		allowedMethods: []string{http.MethodGet, http.MethodOptions},
 	},
 }
 
