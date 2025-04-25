@@ -58,32 +58,37 @@ func DenyMethod(allowedMethods []string) http.HandlerFunc {
 // GET "/"
 func RootHandler(jwtKey []byte) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		w.Write([]byte("<!DOCTYPE html>"))
-		w.Write([]byte("<h1>API Gateway</h1>"))
-		w.Write([]byte("<a href=/auth>log in</a>"))
+		accept := r.Header.Get("accept")
+		if strings.Contains(accept, "text/html") {
+			w.Header().Set("Content-Type", "text/html; charset=utf-8")
+			w.Write([]byte("<!DOCTYPE html>"))
+			w.Write([]byte("<h1>API Gateway</h1>"))
+			w.Write([]byte("<a href=/auth>log in</a>"))
 
-		proxyAuthCookie, err := r.Cookie("__Host-ProxyAuth")
-		if err == http.ErrNoCookie {
-			log.Println("Proxy auth cookie not found: " + err.Error())
-			return
-		}
+			proxyAuthCookie, err := r.Cookie("__Host-ProxyAuth")
+			if err == http.ErrNoCookie {
+				log.Println("Proxy auth cookie not found: " + err.Error())
+				return
+			}
 
-		if err = CheckCookie(proxyAuthCookie); err != nil {
-			log.Println("Bad proxy auth cookie: " + err.Error())
-			http.Error(w, "Bad request", http.StatusBadRequest)
-			return
-		}
+			if err = CheckCookie(proxyAuthCookie); err != nil {
+				log.Println("Bad proxy auth cookie: " + err.Error())
+				http.Error(w, "Bad request", http.StatusBadRequest)
+				return
+			}
 
-		claims, err := ParseJWT(jwtKey, proxyAuthCookie.Value)
-		if err != nil {
-			log.Println("Error parsing JWT: " + err.Error())
-			http.Error(w, "Bad request", http.StatusBadRequest)
-			return
-		}
-		w.Write([]byte("<br>"))
-		for _, path := range claims.AllowedPaths {
-			fmt.Fprintf(w, `<a href="%s">%s</a><br>`, path, path)
+			claims, err := ParseJWT(jwtKey, proxyAuthCookie.Value)
+			if err != nil {
+				log.Println("Error parsing JWT: " + err.Error())
+				http.Error(w, "Bad request", http.StatusBadRequest)
+				return
+			}
+			w.Write([]byte("<br>"))
+			for _, path := range claims.AllowedPaths {
+				fmt.Fprintf(w, `<a href="%s">%s</a><br>`, path, path)
+			}
+		} else {
+			http.Error(w, "Not acceptable", http.StatusNotAcceptable)
 		}
 	}
 }
