@@ -45,14 +45,14 @@ func main() {
 
 	// "/"
 	rootMethods := []string{http.MethodGet, http.MethodOptions}
-	rootHeaders := []string{"Accept", "Content-Type"}
+	rootHeaders := []string{"Accept", "Content-Type", "CF-Authorization"}
 	mux.HandleFunc("GET /{$}", RootHandler(jwtKey))
 	mux.HandleFunc("OPTIONS /{$}", OptionsHandler(rootMethods, rootHeaders))
 	mux.HandleFunc("/{$}", DenyMethod(rootMethods))
 
 	// "/auth"
 	authMethods := []string{http.MethodGet, http.MethodPost, http.MethodOptions}
-	authHeaders := []string{"Accept", "Content-Type"}
+	authHeaders := []string{"Accept", "Content-Type", "CF-Authorization"}
 	mux.HandleFunc("GET /auth", AuthPageHandler(authTemplate))
 	mux.HandleFunc("POST /auth", AuthSubmitHandler(jwtKey))
 	mux.HandleFunc("OPTIONS /auth", OptionsHandler(authMethods, authHeaders))
@@ -63,7 +63,7 @@ func main() {
 	mux.HandleFunc("/favicon.ico", DenyMethod([]string{http.MethodGet}))
 
 	// "/*"
-	proxyHeaders := []string{"Authorization"}
+	proxyHeaders := []string{"Accept", "Content-Type", "Authorization", "CF-Authorization"}
 	mux.HandleFunc("OPTIONS /", OptionsHandlerAuth(allMethods, proxyHeaders))
 	mux.HandleFunc("/", ProxyHandler(jwtKey))
 
