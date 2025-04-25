@@ -56,26 +56,11 @@ func DenyMethod(allowedMethods []string) http.HandlerFunc {
 }
 
 // Helper function to handle OPTIONS requests
-func OptionsHandler(allowedMethods []string, allowedHeaders []string) http.HandlerFunc {
+func OptionsHandler(allowedMethods []string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		methods := strings.Join(allowedMethods, ", ")
-		headers := strings.Join(allowedHeaders, ", ")
 		w.Header().Set("Allow", methods)
 		w.Header().Set("Access-Control-Allow-Methods", methods)
-		w.Header().Set("Access-Control-Allow-Headers", headers)
-		w.WriteHeader(http.StatusNoContent)
-	}
-}
-
-// Helper function to handle OPTIONS requests with Authentication allowed
-func OptionsHandlerAuth(allowedMethods []string, allowedHeaders []string) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		methods := strings.Join(allowedMethods, ", ")
-		headers := strings.Join(allowedHeaders, ", ")
-		w.Header().Set("Allow", methods)
-		w.Header().Set("Access-Control-Allow-Methods", methods)
-		w.Header().Set("Access-Control-Allow-Headers", headers)
-		w.Header().Set("Access-Control-Allow-Credentials", "true")
 		w.WriteHeader(http.StatusNoContent)
 	}
 }
