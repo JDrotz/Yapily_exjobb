@@ -122,6 +122,7 @@ func (ac *ApiClient) authCallbackHandler(w http.ResponseWriter, r *http.Request)
 	if authState == "" {
 		log.Println("Request callback missing state")
 		http.Error(w, "Bad request", http.StatusBadRequest)
+		return
 	}
 
 	request := map[string]any{
