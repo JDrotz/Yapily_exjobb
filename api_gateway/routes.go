@@ -88,6 +88,13 @@ func RootHandler(jwtKey []byte) http.HandlerFunc {
 	}
 }
 
+// GET "/favicon.ico"
+func FaviconHandler(filepath string) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		http.ServeFile(w, r, filepath)
+	}
+}
+
 // GET "/auth"
 func AuthPageHandler(authTemplate string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {

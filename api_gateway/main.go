@@ -38,6 +38,9 @@ func main() {
 	mux.HandleFunc("POST /auth", AuthSubmitHandler(jwtKey))
 	mux.HandleFunc("/auth", DenyMethod([]string{http.MethodGet, http.MethodPost}))
 
+	mux.HandleFunc("GET /favicon.ico", FaviconHandler("assets/favicon.ico"))
+	mux.HandleFunc("/favicon.ico", DenyMethod([]string{http.MethodGet}))
+
 	mux.HandleFunc("/", ProxyHandler(jwtKey))
 
 	http.ListenAndServe(":8083", mux)
