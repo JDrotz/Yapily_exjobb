@@ -50,8 +50,33 @@ var endpoints = map[string]EndpointData{
 // Helper function to disallow all unhandled methods for a path
 func DenyMethod(allowedMethods []string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Allow", strings.Join(allowedMethods, ","))
+		w.Header().Set("Allow", strings.Join(allowedMethods, ", "))
 		http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
+	}
+}
+
+// Helper function to handle OPTIONS requests
+func OptionsHandler(allowedMethods []string, allowedHeaders []string) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		methods := strings.Join(allowedMethods, ", ")
+		headers := strings.Join(allowedHeaders, ", ")
+		w.Header().Set("Allow", methods)
+		w.Header().Set("Access-Control-Allow-Methods", methods)
+		w.Header().Set("Access-Control-Allow-Headers", headers)
+		w.WriteHeader(http.StatusNoContent)
+	}
+}
+
+// Helper function to handle OPTIONS requests with Authentication allowed
+func OptionsHandlerAuth(allowedMethods []string, allowedHeaders []string) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		methods := strings.Join(allowedMethods, ", ")
+		headers := strings.Join(allowedHeaders, ", ")
+		w.Header().Set("Allow", methods)
+		w.Header().Set("Access-Control-Allow-Methods", methods)
+		w.Header().Set("Access-Control-Allow-Headers", headers)
+		w.Header().Set("Access-Control-Allow-Credentials", "true")
+		w.WriteHeader(http.StatusNoContent)
 	}
 }
 
