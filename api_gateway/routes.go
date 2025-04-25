@@ -158,7 +158,11 @@ func AuthSubmitHandler(jwtKey []byte) http.HandlerFunc {
 			http.Redirect(w, r, "/", http.StatusFound)
 		} else {
 			w.Header().Set("Content-Type", "application/json; charset=utf-8")
-			response := map[string]string{"token": jwtToken}
+			response := map[string]any{
+				"token":      jwtToken,
+				"token_type": "Bearer",
+				"expires_in": 900,
+			}
 			if err := json.NewEncoder(w).Encode(response); err != nil {
 				log.Println("Failed to encode JSON response")
 				http.Error(w, "Internal server error", http.StatusInternalServerError)

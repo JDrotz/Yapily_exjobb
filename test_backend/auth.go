@@ -169,6 +169,8 @@ func (ac *ApiClient) authCallbackHandler(w http.ResponseWriter, r *http.Request)
 	}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.Write([]byte("<!DOCTYPE html>"))
+	w.Write([]byte("<h1>Consent Token</h1>"))
 	w.Write([]byte(consentAuth.ConsentToken))
 }
 

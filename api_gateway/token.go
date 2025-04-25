@@ -27,11 +27,10 @@ func ParseJWT(jwtKey []byte, authHeader string) (*Claims, error) {
 }
 
 func GenerateJWT(jwtKey []byte, allowedPaths []string) (string, error) {
-	expirationTime := time.Now().Add(15 * time.Minute)
 	claims := &Claims{
 		AllowedPaths: allowedPaths,
 		RegisteredClaims: jwt.RegisteredClaims{
-			ExpiresAt: jwt.NewNumericDate(expirationTime),
+			ExpiresAt: jwt.NewNumericDate(time.Now().Add(15 * time.Minute)),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),
 			Issuer:    "YAPILY_EXJOBB_APIGATEWAY",
 		},
