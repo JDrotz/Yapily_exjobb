@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"html/template"
 	"log"
-	"net"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
@@ -147,7 +146,7 @@ func AuthSubmitHandler(jwtKey []byte) http.HandlerFunc {
 		var jwtToken string
 		var err error
 
-		remoteAddr := r.Header.Get("X-Real-IP")
+		remoteAddr := r.Header.Get("X-Forwarded-For")
 		log.Println("AUDIT: Validation requested by: " + remoteAddr)
 		switch r.FormValue("token") {
 		case ADMIN_PASS:
@@ -199,14 +198,8 @@ func AuthSubmitHandler(jwtKey []byte) http.HandlerFunc {
 // VERB anything not in ["/", "/auth"]
 func ProxyHandler(jwtKey []byte) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		remoteAddr := r.Header.Get("X-Real-IP")
-		clientIP, _, err := net.SplitHostPort(remoteAddr)
-		if err != nil {
-			log.Println("Bad host data in request: " + err.Error())
-			http.Error(w, "Bad request", http.StatusBadRequest)
-			return
-		}
-		limiter := getLimiter(clientIP)
+		remoteAddr := r.Header.Get("X-Forwarded-For")
+		limiter := getLimiter(remoteAddr)
 		if !limiter.Allow() {
 			log.Println("Rate limit exceeded")
 			http.Error(w, "Rate limit exceeded", http.StatusTooManyRequests)
