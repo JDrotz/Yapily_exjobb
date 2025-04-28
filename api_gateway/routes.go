@@ -147,14 +147,15 @@ func AuthSubmitHandler(jwtKey []byte) http.HandlerFunc {
 		var jwtToken string
 		var err error
 
-		log.Println("AUDIT: Validation requested by: " + r.RemoteAddr)
+		remoteAddr := r.Header.Get("X-Real-IP")
+		log.Println("AUDIT: Validation requested by: " + remoteAddr)
 		switch r.FormValue("token") {
 		case ADMIN_PASS:
 			jwtToken, err = GenerateJWT(jwtKey, []string{"/yapilyAuth", "/authCallback", "/ping"})
 		case USER_PASS:
 			jwtToken, err = GenerateJWT(jwtKey, []string{"/ping"})
 		default:
-			log.Println("AUDIT: Validation error by: " + r.RemoteAddr)
+			log.Println("AUDIT: Validation error by: " + remoteAddr)
 			http.Error(w, "Unauthorized", http.StatusUnauthorized)
 			return
 		}
@@ -191,14 +192,15 @@ func AuthSubmitHandler(jwtKey []byte) http.HandlerFunc {
 				return
 			}
 		}
-		log.Println("AUDIT: Validation granted to: " + r.RemoteAddr)
+		log.Println("AUDIT: Validation granted to: " + remoteAddr)
 	}
 }
 
 // VERB anything not in ["/", "/auth"]
 func ProxyHandler(jwtKey []byte) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		clientIP, _, err := net.SplitHostPort(r.RemoteAddr)
+		remoteAddr := r.Header.Get("X-Real-IP")
+		clientIP, _, err := net.SplitHostPort(remoteAddr)
 		if err != nil {
 			log.Println("Bad host data in request: " + err.Error())
 			http.Error(w, "Bad request", http.StatusBadRequest)

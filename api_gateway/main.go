@@ -58,10 +58,13 @@ func main() {
 
 	// "/favicon.ico"
 	mux.HandleFunc("GET /favicon.ico", FaviconHandler("assets/favicon.ico"))
+	// TODO: Restrict methods on gateway endpoint
+	//       Perhaps the endpoints should register themselves with the
+	//       API-gateway to announce their payloads, IP, and allowed
+	//       methods?
 	mux.HandleFunc("/favicon.ico", DenyMethod([]string{http.MethodGet}))
 
 	// "/*"
-	// mux.HandleFunc("OPTIONS /", OptionsHandler(allMethods))
 	mux.HandleFunc("/", ProxyHandler(jwtKey))
 
 	http.ListenAndServe(":8083", mux)
